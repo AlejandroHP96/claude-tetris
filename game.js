@@ -588,6 +588,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (paused || gameOver) return;
+  if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space'].includes(e.code)) e.preventDefault();
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
