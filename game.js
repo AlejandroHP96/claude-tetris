@@ -43,8 +43,88 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const nameEntryEl = document.getElementById('name-entry');
+const playerNameInput = document.getElementById('player-name');
+const saveScoreBtn = document.getElementById('save-score-btn');
+const recordsSection = document.getElementById('records-section');
+const recordsBody = document.getElementById('records-body');
+const recordsStats = document.getElementById('records-stats');
+const resetRecordsBtn = document.getElementById('reset-records-btn');
 
 let board, current, next, hold, canHold, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let combo, maxCombo, scoreSaved;
+
+// ---- Records helpers ----
+
+function getRecords() {
+  try {
+    return JSON.parse(localStorage.getItem('tetris-records')) || [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveRecords(records) {
+  localStorage.setItem('tetris-records', JSON.stringify(records));
+}
+
+function getBestCombo() {
+  return parseInt(localStorage.getItem('tetris-best-combo'), 10) || 0;
+}
+
+function getMaxLines() {
+  return parseInt(localStorage.getItem('tetris-max-lines'), 10) || 0;
+}
+
+function isTopFive(currentScore) {
+  const records = getRecords();
+  return records.length < 5 || currentScore > records[records.length - 1].score;
+}
+
+function insertRecord(name, currentScore, currentLines, currentCombo) {
+  const records = getRecords();
+  records.push({ name: name.trim() || 'Anónimo', score: currentScore, lines: currentLines, combo: currentCombo });
+  records.sort((a, b) => b.score - a.score);
+  if (records.length > 5) records.length = 5;
+  saveRecords(records);
+}
+
+function updateHistoricalBests(currentMaxCombo, currentLines) {
+  if (currentMaxCombo > getBestCombo()) {
+    localStorage.setItem('tetris-best-combo', currentMaxCombo);
+  }
+  if (currentLines > getMaxLines()) {
+    localStorage.setItem('tetris-max-lines', currentLines);
+  }
+}
+
+function renderRecordsTable(highlightScore) {
+  const records = getRecords();
+  recordsBody.innerHTML = '';
+
+  records.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (highlightScore !== undefined && r.score === highlightScore) {
+      tr.classList.add('record-highlight');
+    }
+    tr.innerHTML = `<td>${i + 1}</td><td>${escapeHtml(r.name)}</td><td>${r.score.toLocaleString()}</td><td>${r.lines}</td><td>${r.combo}</td>`;
+    recordsBody.appendChild(tr);
+  });
+
+  const bestCombo = getBestCombo();
+  const maxLinesVal = getMaxLines();
+  recordsStats.innerHTML =
+    `<span>Mejor combo: <strong>${bestCombo}</strong></span>` +
+    `<span>Máx. líneas: <strong>${maxLinesVal}</strong></span>`;
+
+  recordsSection.classList.remove('hidden');
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ---- Board ----
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -111,11 +191,17 @@ function clearLines() {
     }
   }
   if (cleared) {
+    combo++;
+    if (combo > maxCombo) maxCombo = combo;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
+    // combo bonus: extra 50 * combo * level per consecutive clear
+    if (combo > 1) score += 50 * combo * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
+  } else {
+    combo = 0;
   }
 }
 
@@ -262,10 +348,50 @@ function drawHold() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
+
+  // Update historical bests
+  updateHistoricalBests(maxCombo, lines);
+
   overlayTitle.textContent = 'GAME OVER';
-  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  overlayScore.textContent = `Puntuación: ${score.toLocaleString()} | Líneas: ${lines} | Combo: ${maxCombo}`;
+
+  scoreSaved = false;
+
+  // Hide name entry by default
+  nameEntryEl.classList.add('hidden');
+  playerNameInput.value = '';
+
+  if (isTopFive(score)) {
+    nameEntryEl.classList.remove('hidden');
+    playerNameInput.focus();
+  }
+  // Render table without highlight (name not yet saved)
+  renderRecordsTable();
+
   overlay.classList.remove('hidden');
 }
+
+function saveCurrentScore() {
+  if (scoreSaved) return;
+  scoreSaved = true;
+  const name = playerNameInput.value.trim() || 'Anónimo';
+  insertRecord(name, score, lines, maxCombo);
+  nameEntryEl.classList.add('hidden');
+  renderRecordsTable(score);
+}
+
+saveScoreBtn.addEventListener('click', saveCurrentScore);
+
+playerNameInput.addEventListener('keydown', e => {
+  if (e.code === 'Enter') saveCurrentScore();
+});
+
+resetRecordsBtn.addEventListener('click', () => {
+  localStorage.removeItem('tetris-records');
+  localStorage.removeItem('tetris-best-combo');
+  localStorage.removeItem('tetris-max-lines');
+  renderRecordsTable();
+});
 
 function togglePause() {
   if (gameOver) return;
@@ -277,6 +403,8 @@ function togglePause() {
     cancelAnimationFrame(animId);
     overlayTitle.textContent = 'PAUSA';
     overlayScore.textContent = '';
+    nameEntryEl.classList.add('hidden');
+    recordsSection.classList.add('hidden');
     overlay.classList.remove('hidden');
   }
 }
@@ -309,11 +437,16 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  combo = 0;
+  maxCombo = 0;
+  scoreSaved = false;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
   drawHold();
+  nameEntryEl.classList.add('hidden');
+  recordsSection.classList.add('hidden');
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
@@ -349,7 +482,13 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+restartBtn.addEventListener('click', () => {
+  // If name entry is pending and score not yet saved, auto-save as anonymous
+  if (!scoreSaved && !nameEntryEl.classList.contains('hidden')) {
+    saveCurrentScore();
+  }
+  init();
+});
 
 const themeToggle = document.getElementById('theme-toggle');
 
