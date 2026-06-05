@@ -1,0 +1,73 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    # Evitar bucles: no ejecutar si el actor es un bot
+    if: ${{ !endsWith(github.actor, '[bot]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Analizar issue con Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowedTools "Bash(gh issue *),Bash(gh label *)"'
+          prompt: |
+            Eres un triador de issues para el repositorio ${{ github.repository }}.
+            Analiza el issue #${{ github.event.issue.number }}:
+
+            **Título:** ${{ github.event.issue.title }}
+            **Descripción:**
+            ${{ github.event.issue.body }}
+
+            Sigue estos pasos EN ORDEN:
+
+            1. **Labels:** Ejecuta `gh label list --repo ${{ github.repository }}` para ver los labels existentes.
+               - Asigna los labels existentes que correspondan con `gh issue edit ${{ github.event.issue.number }} --add-label "<label>" --repo ${{ github.repository }}`.
+               - Si ningún label existente encaja bien, crea uno nuevo con `gh label create "<nombre>" --color "<hex>" --description "<desc>" --repo ${{ github.repository }}` y luego asígnalo.
+
+            2. **Diagnóstico:** Revisa si ya existe un comentario tuyo de diagnóstico previo con `gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --comments`.
+               - Si NO existe: crea un comentario nuevo con `gh issue comment ${{ github.event.issue.number }} --body "..." --repo ${{ github.repository }}`.
+               - Si YA existe: actualiza ese comentario con `gh api repos/${{ github.repository }}/issues/comments/<id> -X PATCH -f body="..."`.
+
+            El comentario de diagnóstico debe tener EXACTAMENTE este formato en español:
+
+            ```
+            ## 🔍 Diagnóstico del Issue
+
+            ### 📋 Resumen
+            [Descripción breve del problema en 1-2 oraciones]
+
+            ### 🏷️ Tipo de problema
+            [Bug / Nueva funcionalidad / Mejora / Documentación / Pregunta / etc.]
+
+            ### 📁 Áreas/archivos probablemente afectados
+            [Lista de archivos, módulos o componentes relevantes del repo]
+
+            ### 🔎 Causa probable
+            [Análisis técnico de la causa raíz o necesidad]
+
+            ### 🛠️ Plan de solución sugerido
+            [Pasos concretos y ordenados para implementar la solución]
+
+            ### ⚡ Complejidad estimada
+            [Baja / Media / Alta — con justificación breve]
+
+            ---
+            *Diagnóstico generado automáticamente por Claude*
+            ```
+
+            Sé conciso, técnico y útil. Este diagnóstico será la base para implementar la solución.
