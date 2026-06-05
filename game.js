@@ -4,17 +4,114 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#90caf9', // J - pale blue
-  '#ffb74d', // L - orange
-  '#26a69a', // Tortuga - teal
-];
+const SKINS = {
+  retro: {
+    colors: [null, '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784', '#e57373', '#90caf9', '#ffb74d', '#26a69a'],
+    drawBlock(ctx, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      ctx.globalAlpha = alpha ?? 1;
+      ctx.fillStyle = color;
+      ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+      ctx.globalAlpha = 1;
+    }
+  },
+  neon: {
+    colors: [null, '#00fff5', '#ffe600', '#dd00ff', '#00ff6a', '#ff2d55', '#4d9fff', '#ff8c00', '#00ffb2'],
+    drawBlock(ctx, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      ctx.globalAlpha = alpha ?? 1;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = color;
+      ctx.fillStyle = color;
+      ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+  },
+  pastel: {
+    colors: [null, '#b2eaf2', '#fff3b0', '#e8c7f5', '#c5e8c6', '#f7c5c5', '#c8dff7', '#ffd9b0', '#a8ded9'],
+    drawBlock(ctx, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      ctx.globalAlpha = alpha ?? 1;
+      ctx.fillStyle = color;
+      const px = x * size + 1;
+      const py = y * size + 1;
+      const w = size - 2;
+      const h = size - 2;
+      const r = Math.min(5, w / 2, h / 2);
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(px, py, w, h, r);
+      } else {
+        ctx.moveTo(px + r, py);
+        ctx.lineTo(px + w - r, py);
+        ctx.arcTo(px + w, py, px + w, py + r, r);
+        ctx.lineTo(px + w, py + h - r);
+        ctx.arcTo(px + w, py + h, px + w - r, py + h, r);
+        ctx.lineTo(px + r, py + h);
+        ctx.arcTo(px, py + h, px, py + h - r, r);
+        ctx.lineTo(px, py + r);
+        ctx.arcTo(px, py, px + r, py, r);
+        ctx.closePath();
+      }
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  },
+  pixelart: {
+    colors: [null, '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784', '#e57373', '#90caf9', '#ffb74d', '#26a69a'],
+    drawBlock(ctx, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      ctx.globalAlpha = alpha ?? 1;
+      ctx.fillStyle = color;
+      ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+      // Pixel grid pattern overlay
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      const dotSize = Math.max(2, Math.floor(size / 6));
+      const step = Math.floor(size / 3);
+      for (let dr = 0; dr < 3; dr++) {
+        for (let dc = 0; dc < 3; dc++) {
+          const px = x * size + 2 + dc * step;
+          const py = y * size + 2 + dr * step;
+          ctx.fillRect(px, py, dotSize, dotSize);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+};
+
+let activeSkin = localStorage.getItem('tetris-skin') || 'retro';
+
+function applyNeonBackground(enable) {
+  const canvases = [canvas, nextCanvas, holdCanvas];
+  if (enable) {
+    canvases.forEach(c => c.style.background = '#000000');
+  } else {
+    canvases.forEach(c => c.style.background = '');
+  }
+}
+
+function setSkin(skinName) {
+  if (!SKINS[skinName]) return;
+  activeSkin = skinName;
+  localStorage.setItem('tetris-skin', skinName);
+  applyNeonBackground(skinName === 'neon');
+  document.querySelectorAll('.skin-btn').forEach(btn => {
+    btn.classList.toggle('skin-btn-active', btn.dataset.skin === skinName);
+  });
+  if (current) {
+    draw();
+    drawNext();
+    drawHold();
+  }
+}
 
 const PIECES = [
   null,
@@ -212,14 +309,7 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+  SKINS[activeSkin].drawBlock(context, x, y, colorIndex, size, alpha);
 }
 
 function drawGrid() {
@@ -419,6 +509,13 @@ const themeToggle = document.getElementById('theme-toggle');
     document.documentElement.classList.add('light-theme');
     themeToggle.checked = true;
   }
+})();
+
+(function loadSkin() {
+  applyNeonBackground(activeSkin === 'neon');
+  document.querySelectorAll('.skin-btn').forEach(btn => {
+    btn.classList.toggle('skin-btn-active', btn.dataset.skin === activeSkin);
+  });
 })();
 
 themeToggle.addEventListener('change', () => {

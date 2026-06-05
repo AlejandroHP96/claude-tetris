@@ -402,3 +402,35 @@ kbd {
   gap: 4px;
   justify-content: center;
 }
+
+/* ---- Skin selector ---- */
+.skin-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.skin-btn {
+  background: var(--kbd-bg);
+  color: var(--kbd-color);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  padding: 5px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.skin-btn:hover {
+  background: var(--border-canvas);
+  color: var(--color-text);
+}
+
+.skin-btn.skin-btn-active {
+  background: var(--color-accent);
+  color: var(--bg-body);
+  border-color: var(--color-accent);
+}
