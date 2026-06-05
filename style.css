@@ -182,12 +182,17 @@ body {
   letter-spacing: 1px;
 }
 
+#hold-canvas,
 #next-canvas {
   display: block;
   border: 1px solid var(--border-canvas);
   background: var(--bg-canvas);
   border-radius: 4px;
-  transition: background 0.25s, border-color 0.25s;
+  transition: background 0.25s, border-color 0.25s, opacity 0.25s;
+}
+
+#hold-canvas.hold-locked {
+  opacity: 0.3;
 }
 
 /* ---- Controles ---- */
