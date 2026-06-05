@@ -169,7 +169,7 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim();
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -300,5 +300,24 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+const themeToggle = document.getElementById('theme-toggle');
+
+(function loadTheme() {
+  if (localStorage.getItem('tetris-theme') === 'light') {
+    document.documentElement.classList.add('light-theme');
+    themeToggle.checked = true;
+  }
+})();
+
+themeToggle.addEventListener('change', () => {
+  if (themeToggle.checked) {
+    document.documentElement.classList.add('light-theme');
+    localStorage.setItem('tetris-theme', 'light');
+  } else {
+    document.documentElement.classList.remove('light-theme');
+    localStorage.setItem('tetris-theme', 'dark');
+  }
+});
 
 init();
